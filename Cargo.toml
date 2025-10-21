@@ -10,3 +10,8 @@ panic = "abort"
 
 [profile.release]
 panic = "abort"
+
+[[bin]]
+name = "rdos"
+test = false
+bench = false
