@@ -2,11 +2,19 @@ RDOS (Really dumb OS)
 
 [bootimage]: https://crates.io/crates/bootimage
 
-# Dependencies
+# Build dependencies
 
-- nightly rust toolchain
+You have to install the following dependencies yourself:
+
 - qemu
-- [`bootimage`][bootimage] tool
+- llvm tools
+- [`bootimage`][bootimage] tool: `cargo install bootimage`
+
+If you are on Debian system, install the required packages with:
+
+```sh
+sudo apt-get install -y qemu-system llvm-14-tools
+```
 
 # Running
 
