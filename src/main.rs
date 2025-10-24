@@ -12,8 +12,7 @@ fn panic(_info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    let mut writer = vga::Writer::default();
-    writer.write_string("Hello, World!\n\n");
+    vga::WRITER.lock().write_string("Hello, World!\n");
 
     loop {}
 }

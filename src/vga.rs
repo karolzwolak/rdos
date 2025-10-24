@@ -1,6 +1,9 @@
 use core::fmt;
-
 use volatile::Volatile;
+
+lazy_static::lazy_static! {
+    pub static ref WRITER: spin::Mutex<Writer> = spin::Mutex::default();
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
