@@ -7,7 +7,6 @@
 use core::panic::PanicInfo;
 use rdos::println;
 
-#[allow(clippy::empty_loop)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     test_main();

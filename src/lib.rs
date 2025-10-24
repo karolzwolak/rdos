@@ -10,7 +10,6 @@ pub mod vga;
 use core::panic::PanicInfo;
 
 // Use serial output for panic messages in test mode
-#[allow(clippy::empty_loop)]
 pub fn test_panic_handler(info: &PanicInfo) -> ! {
     serial_println!("[failed]\n");
     serial_println!("Error: {}\n", info);
@@ -66,7 +65,6 @@ where
 
 /// Entry point for `cargo test`
 #[cfg(test)]
-#[allow(clippy::empty_loop)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     test_main();

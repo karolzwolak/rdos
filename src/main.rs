@@ -22,7 +22,6 @@ fn panic(info: &PanicInfo) -> ! {
     test_panic_handler(info)
 }
 
-#[allow(clippy::empty_loop)]
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
     #[cfg(test)]
