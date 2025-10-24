@@ -10,12 +10,10 @@ fn panic(_info: &PanicInfo) -> ! {
     loop {}
 }
 
-static HELLO: &str = "Hello, world!";
-
 #[unsafe(no_mangle)]
 pub extern "C" fn _start() -> ! {
-    let mut writer = vga::Writer::new(vga::Color::White, vga::Color::Black);
-    writer.write_string(HELLO);
+    let mut writer = vga::Writer::default();
+    writer.write_string("Hello, World!\n\n");
 
     loop {}
 }

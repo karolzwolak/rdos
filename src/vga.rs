@@ -1,3 +1,5 @@
+use core::fmt;
+
 use volatile::Volatile;
 
 #[allow(dead_code)]
@@ -32,6 +34,12 @@ impl ColorCode {
     }
 }
 
+impl Default for ColorCode {
+    fn default() -> Self {
+        ColorCode::new(Color::White, Color::Black)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 struct ScreenChar {
@@ -48,17 +56,33 @@ struct Buffer {
     chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
 }
 
+/// A writer that can write to the VGA text buffer.
+/// Writes from the bottom up. New lines push existing lines up.
 pub struct Writer {
     column_position: usize,
     color_code: ColorCode,
     buffer: &'static mut Buffer,
 }
 
+impl fmt::Write for Writer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        self.write_string(s);
+        Ok(())
+    }
+}
+
+impl Default for Writer {
+    fn default() -> Self {
+        Writer::new(ColorCode::default())
+    }
+}
+
 impl Writer {
-    pub fn new(foreground: Color, background: Color) -> Writer {
+    const fn new(color_code: ColorCode) -> Writer {
         Writer {
             column_position: 0,
-            color_code: ColorCode::new(foreground, background),
+            color_code,
+            // SAFETY: The VGA text buffer is located at a fixed memory address.
             buffer: unsafe { &mut *(BUFFER_ADDR as *mut Buffer) },
         }
     }
@@ -70,7 +94,7 @@ impl Writer {
                 if self.column_position >= BUFFER_WIDTH {
                     self.new_line();
                 }
-                let row = 0;
+                let row = BUFFER_HEIGHT - 1;
                 let col = self.column_position;
                 self.buffer.chars[row][col].write(ScreenChar {
                     ascii_character: byte,
@@ -84,7 +108,24 @@ impl Writer {
     }
 
     fn new_line(&mut self) {
-        todo!()
+        for row in 1..BUFFER_HEIGHT {
+            for col in 0..BUFFER_WIDTH {
+                let character = self.buffer.chars[row][col].read();
+                self.buffer.chars[row - 1][col].write(character);
+            }
+        }
+        self.clear_row(BUFFER_HEIGHT - 1);
+        self.column_position = 0;
+    }
+
+    fn clear_row(&mut self, row: usize) {
+        let blank = ScreenChar {
+            ascii_character: b' ',
+            color_code: self.color_code,
+        };
+        for col in 0..BUFFER_WIDTH {
+            self.buffer.chars[row][col].write(blank);
+        }
     }
 
     pub fn write_string(&mut self, s: &str) {
