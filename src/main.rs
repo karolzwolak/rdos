@@ -12,6 +12,7 @@ fn panic(info: &PanicInfo) -> ! {
 }
 
 #[unsafe(no_mangle)]
+#[allow(clippy::empty_loop)]
 pub extern "C" fn _start() -> ! {
     println!("Hello, World!");
 
