@@ -24,6 +24,10 @@ name = "rdos"
 test = true
 bench = false
 
+[[test]]
+name = "should_panic"
+harness = false
+
 [package.metadata.bootimage]
 test-args = [
   "-device",
