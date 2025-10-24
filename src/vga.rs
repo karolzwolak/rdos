@@ -154,3 +154,33 @@ impl Writer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_case]
+    fn println_singular_line() {
+        println!("singular line");
+    }
+
+    #[test_case]
+    fn println_many() {
+        for _ in 0..200 {
+            println!("many lines");
+        }
+    }
+
+    #[test_case]
+    fn println_output() {
+        let s = "I should fit on a single line";
+        assert!(s.len() < BUFFER_WIDTH);
+        println!("{}", s);
+        for (col, char) in s.chars().enumerate() {
+            // the second to last row, since println! adds a new line at the end
+            let row = BUFFER_HEIGHT - 2;
+            let screen_char = WRITER.lock().buffer.chars[row][col].read();
+            assert_eq!(char::from(screen_char.ascii_character), char);
+        }
+    }
+}
