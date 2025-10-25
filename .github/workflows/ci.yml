@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-upgrade --no-install-recommends -y llvm-14-tools qemu-system
+          sudo apt-get install --no-upgrade --no-install-recommends -y llvm-14-tools qemu-system-x86
 
       - name: Install bootimage
         run: cargo install bootimage

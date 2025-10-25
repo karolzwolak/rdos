@@ -13,7 +13,7 @@ You have to install the following tools yourself:
 If you are on Debian system, install the required packages with:
 
 ```sh
-sudo apt-get install -y qemu-system llvm-14-tools
+sudo apt-get install -y qemu-system-x86 llvm-14-tools
 ```
 
 ## Optional tools
