@@ -22,8 +22,10 @@ jobs:
       - name: Setup rust cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Install deps packages
-        run: sudo apt-get install -y qemu-system llvm-14-tools
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-upgrade --no-install-recommends -y llvm-14-tools qemu-system
 
       - name: Install bootimage
         run: cargo install bootimage
