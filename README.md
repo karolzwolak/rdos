@@ -2,9 +2,9 @@ RDOS (Really dumb OS)
 
 [bootimage]: https://crates.io/crates/bootimage
 
-# Build dependencies
+# Required tools
 
-You have to install the following dependencies yourself:
+You have to install the following tools yourself:
 
 - qemu
 - llvm tools
@@ -15,6 +15,17 @@ If you are on Debian system, install the required packages with:
 ```sh
 sudo apt-get install -y qemu-system llvm-14-tools
 ```
+
+## Optional tools
+
+- [lefthook](https://github.com/evilmartians/lefthook): for pre-commit and pre-push hooks.
+
+To install the hooks:
+
+- install lefthook
+- run `lefthook install` in the project root
+
+If you want to skip hooks, use `git commit --no-verify` or `git push --no-verify`
 
 # Running
 

@@ -1,0 +1,21 @@
+pre-commit:
+  # skip if here are any unstaged changes
+  skip:
+    - run: "! git diff --quiet"
+  commands:
+    fmt:
+      run: cargo fmt
+      stage_fixed: true
+    fix-lints:
+      run: cargo clippy --fix --allow-dirty --allow-staged -- -D warnings
+      stage_fixed: true
+
+pre-push:
+  parallel: true
+  commands:
+    test:
+      run: cargo test
+    check-fmt:
+      run: cargo fmt --check
+    check-clippy:
+      run: cargo clippy --all-targets -- -D warnings
