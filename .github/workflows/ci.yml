@@ -15,6 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # trigger installation from rust-toolchain.toml
+      - name: Setup rust toolchain
+        run: rustup show
+
       - name: Setup rust cache
         uses: Swatinem/rust-cache@v2
 
@@ -31,6 +35,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # trigger installation from rust-toolchain.toml
+      - name: Setup rust toolchain
+        run: rustup show
+
       - name: Run Clippy linter
         run: cargo clippy --tests -- -D warnings
 
@@ -38,5 +47,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # trigger installation from rust-toolchain.toml
+      - name: Setup rust toolchain
+        run: rustup show
+
       - name: Check formatting
         run: cargo fmt -- --check
