@@ -60,6 +60,12 @@ static MP_REQUEST: MpRequest = MpRequest::new(LIMINE_MP_FLAG_NO_X2APIC);
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
+
+/// # Safety
+///
+/// Must be called exactly once during BSP boot, with Limine requests mapped and
+/// while running on the bootloader-provided stack. Initializes GDT/IDT, paging, heap, 
+/// bootstraps AP cores
 pub unsafe fn bsp_init() {
     assert!(BASE_REVISION.is_supported());
 
@@ -177,6 +183,7 @@ pub unsafe fn bsp_init() {
     memory::init_memory_globals(frame_allocator, user_memory_manager);
     serial_println!("Global memory managers initialized");
 
+    #[allow(clippy::needless_range_loop)]
     for i in 1..core_count {
         let core_id = i as u8;
         serial_println_core!("Bootstrapping AP core {}", core_id);

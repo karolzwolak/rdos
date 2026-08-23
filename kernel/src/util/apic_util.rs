@@ -9,11 +9,13 @@ pub fn get_current_core_id() -> u8 {
     let lapic = get_lapic_base_addr_phys() as *mut u32;
     unsafe {
         let apic_id_reg = lapic.offset(APICOffset::IDr as isize / 4);
-        let apic_id = (apic_id_reg.read_volatile() >> 24) as u8;
-        apic_id
+        (apic_id_reg.read_volatile() >> 24) as u8
     }
 }
 
+/// # Safety
+///
+/// Must be called once per core after APIC base is mapped and `core_id` < `MAX_CORES`.
 pub unsafe fn init_lapic_for_current_core(core_id: u8) {
     let lapic_ptr = get_lapic_base_addr_phys() as *mut u32;
 

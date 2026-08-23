@@ -5,7 +5,10 @@ extern crate kernel;
 
 use core::panic::PanicInfo;
 use kernel::{
-    HHDM_OFFSET, memory::paging::init_offset_page_table, serial_print, serial_println, testing::{QemuExitCode, exit_qemu, test_panic_handler},
+    HHDM_OFFSET,
+    memory::paging::init_offset_page_table,
+    serial_print, serial_println,
+    testing::{QemuExitCode, exit_qemu, test_panic_handler},
 };
 use x86_64::{
     VirtAddr,

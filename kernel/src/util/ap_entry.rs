@@ -15,6 +15,10 @@ use crate::{
 /// CR0.EM (bit 2) = 0 - clear FPU emulation flag
 /// CR4.OSFXSR (bit 9) = 1 - OS supports FXSAVE/FXRSTOR
 /// CR4.OSXMMEXCPT (bit 10) = 1 - OS handles SSE exceptions
+///
+/// # Safety
+///
+/// Must be called once per core in kernel context with interrupts disabled.
 pub unsafe fn enable_sse_for_current_core() {
     unsafe {
         core::arch::asm!(
@@ -32,6 +36,9 @@ pub unsafe fn enable_sse_for_current_core() {
     }
 }
 
+/// # Safety
+///
+/// `core_id` must be < `MAX_CORES` and called once per core during boot.
 pub unsafe fn init_core(core_id: u8) {
     serial_println!("Core {}: Initializing", core_id);
 
@@ -47,6 +54,9 @@ pub unsafe fn init_core(core_id: u8) {
     serial_println!("Core {}: Initialized successfully", core_id);
 }
 
+/// # Safety
+///
+/// Called by Limine MP bootstrap on AP cores with valid `MpInfo` pointer.
 pub unsafe extern "C" fn ap_core_entry_point(cpu: &MpInfo) -> ! {
     let proc_id = cpu.processor_id as u8;
     let lapic_id = cpu.lapic_id as u8;

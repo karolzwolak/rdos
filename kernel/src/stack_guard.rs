@@ -9,6 +9,10 @@ use x86_64::{
 
 const PAGE_SIZE: u64 = 4096;
 
+/// # Safety
+///
+/// `vaddr` must be a page-aligned virtual address within the HHDM region and `Cr3`
+/// must point to a valid PML4. `frame_allocator` must be valid and not alias the page tables.
 pub unsafe fn unmap_guard_page(
     vaddr: VirtAddr,
     frame_allocator: &mut MemoryMapFrameAllocator,
@@ -74,7 +78,9 @@ pub unsafe fn unmap_guard_page(
         // guard page -> not present
         pt[pt_idx].set_unused();
 
-        let pd_flags = (huge_flags & !PageTableFlags::HUGE_PAGE) | PageTableFlags::PRESENT | PageTableFlags::WRITABLE;
+        let pd_flags = (huge_flags & !PageTableFlags::HUGE_PAGE)
+            | PageTableFlags::PRESENT
+            | PageTableFlags::WRITABLE;
         debug_assert!(!pd_flags.contains(PageTableFlags::USER_ACCESSIBLE));
         pd_entry.set_addr(pt_phys, pd_flags);
 
@@ -86,7 +92,7 @@ pub unsafe fn unmap_guard_page(
             vaddr.as_u64()
         );
 
-        return Ok(());
+        Ok(())
     } else {
         // 4KiB mapping via PT
         let pt_phys = pd_entry.addr();
@@ -101,10 +107,13 @@ pub unsafe fn unmap_guard_page(
 
         x86_64::instructions::tlb::flush(VirtAddr::new(vaddr.as_u64()));
 
-        return Ok(());
+        Ok(())
     }
 }
 
+/// # Safety
+///
+/// `vaddr` must be a valid guard page address and `frame_allocator` must be valid.
 pub unsafe fn ensure_guard_unmapped(
     vaddr: VirtAddr,
     frame_allocator: &mut MemoryMapFrameAllocator,

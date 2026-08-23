@@ -6,9 +6,7 @@ extern crate kernel;
 
 use alloc::{boxed::Box, vec::Vec};
 use core::panic::PanicInfo;
-use kernel::{
-    testing::{test_case, test_panic_handler},
-};
+use kernel::testing::{test_case, test_panic_handler};
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {

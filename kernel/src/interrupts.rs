@@ -397,9 +397,8 @@ pub unsafe fn init_acpi(
             let mut mouse_irq: u32 = 12;
 
             for iso in apic.interrupt_source_overrides.iter() {
-                match iso.isa_source {
-                    1 => keyboard_irq = iso.global_system_interrupt,
-                    _ => {}
+                if iso.isa_source == 1 {
+                    keyboard_irq = iso.global_system_interrupt;
                 }
                 serial_println!(
                     "ISO: ISA IRQ {} -> GSI {}",

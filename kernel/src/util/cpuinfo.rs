@@ -1,16 +1,6 @@
-use crate::{MAX_CORES, serial_println, serial_println_core};
+use crate::{MAX_CORES, serial_println_core};
 use bitflags::bitflags;
 use core::arch::asm;
-
-static mut CPU_INFO: CpuInfo = CpuInfo {
-    features: CpuFeatureFlags::empty(),
-    cache_line_size: 0,
-    apic_id: 0,
-    model: 0,
-    stepping: 0,
-    family: 0,
-    vendor: CpuVendor::Unknown,
-};
 
 pub struct CpuInfo {
     pub features: CpuFeatureFlags,
@@ -208,8 +198,6 @@ pub unsafe fn init_cpu_info_for_core(core_id: u8) {
 
     let cache_line_size = ((feat_ebx >> 8) & 0xFF) as u8 * 8;
     let apic_id = ((feat_ebx >> 24) & 0xFF) as u8;
-    let cpu_family = ((feat_edx >> 8) & 0xF) as u8;
-    let cpu_model = ((feat_edx >> 4) & 0xF) as u8;
     let cpu_stepping = (feat_edx & 0xF) as u8;
     let cpu_vendor = unsafe { get_vendor(vendor_ebx, vendor_ecx, vendor_edx) };
     serial_println_core!("CPU Info:");

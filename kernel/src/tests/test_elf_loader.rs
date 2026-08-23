@@ -9,7 +9,6 @@ use kernel::{
     process::elf_loader::{ElfLoadError, ElfLoadInfo},
     testing::{test_case, test_panic_handler},
 };
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker};
 
 // During static analysis (clippy) the user binary may not be built yet.
 // Clippy passes `--cfg clippy` to rustc, so we fall back to empty bytes which

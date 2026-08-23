@@ -111,6 +111,7 @@ pub fn assert_rsp_in_bounds(core_id: u8) {
 }
 
 static mut PER_CORE_GDT: [Gdt; MAX_CORES as usize] = {
+    #[allow(clippy::declare_interior_mutable_const)]
     const EMPTY: Gdt = Gdt::empty();
     [EMPTY; MAX_CORES as usize]
 };
@@ -124,8 +125,7 @@ struct Gdt {
     tss_selector: SegmentSelector,
 }
 
-static mut PER_CORE_TSS: [UnsafeCell<TaskStateSegment>; MAX_CORES as usize] =
-    unsafe { [const { UnsafeCell::new(TaskStateSegment::new()) }; MAX_CORES as usize] };
+static mut PER_CORE_TSS: [UnsafeCell<TaskStateSegment>; MAX_CORES as usize] = [const { UnsafeCell::new(TaskStateSegment::new()) }; MAX_CORES as usize];
 
 impl Gdt {
     const fn empty() -> Self {
@@ -184,6 +184,10 @@ impl Gdt {
     }
 }
 
+/// # Safety
+///
+/// `core_id` must be < `MAX_CORES` and the per-core stack for that core must be valid.
+/// Loads the GDT and TSS for the current core.
 pub unsafe fn init_core_gdt(core_id: u8) {
     let gdt = Gdt::new(core_id);
 
