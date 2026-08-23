@@ -5,24 +5,23 @@ use x86_64::registers::segmentation::Segment;
 use x86_64::structures::gdt::{Descriptor, GlobalDescriptorTable, SegmentSelector};
 use x86_64::structures::tss::TaskStateSegment;
 
-use crate::memory::paging::MemoryMapFrameAllocator;
+use crate::memory::paging::{MemoryMapFrameAllocator, PAGE_SIZE};
 use crate::{MAX_CORES, serial_println};
 
 pub const DOUBLE_FAULT_IST_INDEX: u16 = 0;
 
 pub const PER_CORE_STACK_SIZE: usize = 8 * 4096; // 32 KiB
-pub const GUARD_PAGE_SIZE: usize = 4096;
 
 #[repr(C, align(4096))]
 pub struct GuardedKernelStack {
-    pub guard: [u8; GUARD_PAGE_SIZE],
+    pub guard: [u8; PAGE_SIZE],
     pub stack: [u8; PER_CORE_STACK_SIZE],
 }
 
 impl GuardedKernelStack {
     const fn new() -> Self {
         Self {
-            guard: [0u8; GUARD_PAGE_SIZE],
+            guard: [0u8; PAGE_SIZE],
             stack: [0u8; PER_CORE_STACK_SIZE],
         }
     }

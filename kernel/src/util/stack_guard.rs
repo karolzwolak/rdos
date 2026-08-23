@@ -1,4 +1,4 @@
-use crate::memory::paging::MemoryMapFrameAllocator;
+use crate::memory::paging::{MemoryMapFrameAllocator, PAGE_SIZE};
 use crate::{HHDM_OFFSET, serial_println};
 use x86_64::structures::paging::FrameAllocator;
 use x86_64::{
@@ -6,8 +6,6 @@ use x86_64::{
     registers::control::Cr3,
     structures::paging::{PageTable, PageTableFlags},
 };
-
-const PAGE_SIZE: u64 = 4096;
 
 /// # Safety
 ///
@@ -39,7 +37,6 @@ pub unsafe fn unmap_guard_page(
     if pdpt_entry.is_unused() {
         return Err("pdpt entry unused");
     }
-    // check for 1GiB huge page at PDPT level
     if pdpt_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
         return Err("pdpt huge page not supported for guard");
     }
@@ -52,30 +49,27 @@ pub unsafe fn unmap_guard_page(
         return Err("pd entry unused");
     }
 
+    // Limine uses huge pages for kernel
     if pd_entry.flags().contains(PageTableFlags::HUGE_PAGE) {
-        // 2MiB huge page -> split into 512 4KiB pages
         let huge_phys_base = pd_entry.addr().as_u64();
         let huge_flags = pd_entry.flags();
-        // allocate new PT
         let pt_frame = frame_allocator
             .allocate_frame()
             .ok_or("out of frames for PT split")?;
         let pt_phys = pt_frame.start_address();
         let pt_virt = VirtAddr::new(pt_phys.as_u64() + hhdm);
         let pt = unsafe { &mut *pt_virt.as_mut_ptr::<PageTable>() };
-        // zero PT
         for entry in pt.iter_mut() {
             entry.set_unused();
         }
 
         let base_flags = huge_flags & !PageTableFlags::HUGE_PAGE;
         for i in 0..512 {
-            let phys = PhysAddr::new(huge_phys_base + i as u64 * PAGE_SIZE);
+            let phys = PhysAddr::new(huge_phys_base + i as u64 * PAGE_SIZE as u64);
             let mut flags = base_flags;
             flags.insert(PageTableFlags::PRESENT);
             pt[i].set_addr(phys, flags);
         }
-        // guard page -> not present
         pt[pt_idx].set_unused();
 
         let pd_flags = (huge_flags & !PageTableFlags::HUGE_PAGE)
@@ -94,7 +88,6 @@ pub unsafe fn unmap_guard_page(
 
         Ok(())
     } else {
-        // 4KiB mapping via PT
         let pt_phys = pd_entry.addr();
         let pt_virt = VirtAddr::new(pt_phys.as_u64() + hhdm);
         let pt = unsafe { &mut *pt_virt.as_mut_ptr::<PageTable>() };
