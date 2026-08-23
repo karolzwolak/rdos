@@ -5,9 +5,9 @@ mod boot;
 
 use core::sync::atomic::Ordering;
 
-use kernel::{AP_CORE_COUNT, AP_CORES_READY_COUNT, serial_println_core};
 use kernel::graphics::compositor::Compositor;
 use kernel::util::cpuinfo::get_cpu_info_for_core;
+use kernel::{AP_CORE_COUNT, AP_CORES_READY_COUNT, serial_println_core};
 use kernel::{programs::theophe::Theophe, serial_println};
 extern crate alloc;
 use kernel::graphics::demo;
@@ -41,15 +41,11 @@ fn rust_panic(info: &core::panic::PanicInfo) -> ! {
 fn main() -> ! {
     serial_println!("Welcome to BigOS!");
 
-
-    
     let expected_ap = AP_CORE_COUNT;
     while AP_CORES_READY_COUNT.load(Ordering::Acquire) < expected_ap {
         x86_64::instructions::hlt();
     }
     serial_println_core!("bsp_init: all {} AP cores ready", expected_ap);
-
-
 
     kernel::process::syscall::init_syscall_stack();
 

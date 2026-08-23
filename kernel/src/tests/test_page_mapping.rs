@@ -5,35 +5,12 @@ extern crate kernel;
 
 use core::panic::PanicInfo;
 use kernel::{
-    LIMINE_BASE_REVISION,
-    memory::paging::{MemoryMapFrameAllocator, init_offset_page_table},
-    serial_print, serial_println,
-    testing::{QemuExitCode, exit_qemu, test_panic_handler},
-};
-use limine::{
-    BaseRevision, RequestsEndMarker, RequestsStartMarker,
-    request::{HhdmRequest, MemmapRequest},
+    HHDM_OFFSET, memory::paging::init_offset_page_table, serial_print, serial_println, testing::{QemuExitCode, exit_qemu, test_panic_handler},
 };
 use x86_64::{
     VirtAddr,
     structures::paging::{FrameAllocator, Mapper, Page, PageTableFlags, Size4KiB},
 };
-
-#[used]
-#[unsafe(link_section = ".requests_start_marker")]
-static _START: RequestsStartMarker = RequestsStartMarker::new();
-#[used]
-#[unsafe(link_section = ".requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::with_revision(LIMINE_BASE_REVISION);
-#[used]
-#[unsafe(link_section = ".requests")]
-static HHDM_REQUEST: HhdmRequest = HhdmRequest::new();
-#[used]
-#[unsafe(link_section = ".requests")]
-static MEMORY_MAP_REQUEST: MemmapRequest = MemmapRequest::new();
-#[used]
-#[unsafe(link_section = ".requests_end_marker")]
-static _END: RequestsEndMarker = RequestsEndMarker::new();
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -42,19 +19,13 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    // assert!(BASE_REVISION.is_supported());
-    // let hhdm_offset = HHDM_REQUEST.response().expect("no HHDM").offset;
-    // let memory_map = MEMORY_MAP_REQUEST
-    //     .response()
-    //     .expect("no memory map")
-    //     .entries();
-    // init_globals();
-    // let mut mapper = unsafe { init_offset_page_table(hhdm_offset) };
-    // let mut frame_allocator = unsafe { MemoryMapFrameAllocator::init(memory_map) };
+    unsafe { kernel::boot_common::bsp_init() };
+    let mut mapper = unsafe { init_offset_page_table(HHDM_OFFSET) };
+    let mut frame_allocator = kernel::memory::get_frame_allocator();
 
-    // serial_print!("test_page_mapping::create_mapping...\t");
-    // test_create_mapping(&mut mapper, &mut frame_allocator);
-    // serial_println!("[ok]");
+    serial_print!("test_page_mapping::create_mapping...\t");
+    test_create_mapping(&mut mapper, &mut *frame_allocator);
+    serial_println!("[ok]");
     exit_qemu(QemuExitCode::Success)
 }
 

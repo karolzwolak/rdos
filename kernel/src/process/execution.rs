@@ -27,7 +27,11 @@ pub fn execute_process_direct(process: &Process) -> ! {
     serial_println!("Switched to user page table");
 
     unsafe {
-        jump_to_userspace(process.execution_context.rip, process.execution_context.rsp, 0);
+        jump_to_userspace(
+            process.execution_context.rip,
+            process.execution_context.rsp,
+            0,
+        );
     }
 }
 

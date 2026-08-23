@@ -6,22 +6,11 @@ extern crate kernel;
 
 use core::panic::PanicInfo;
 use kernel::{
-    LIMINE_BASE_REVISION, gdt, serial_print,
+    gdt, serial_print,
     testing::{QemuExitCode, exit_qemu, test_panic_handler},
 };
 use lazy_static::lazy_static;
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker};
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-
-#[used]
-#[unsafe(link_section = ".requests_start_marker")]
-static _START: RequestsStartMarker = RequestsStartMarker::new();
-#[used]
-#[unsafe(link_section = ".requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::with_revision(LIMINE_BASE_REVISION);
-#[used]
-#[unsafe(link_section = ".requests_end_marker")]
-static _END: RequestsEndMarker = RequestsEndMarker::new();
 
 lazy_static! {
     static ref TEST_IDT: InterruptDescriptorTable = {
@@ -42,9 +31,8 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    assert!(BASE_REVISION.is_supported());
+    unsafe { kernel::boot_common::bsp_init() };
     serial_print!("test_stack_overflow::stack_overflow...\t");
-    unsafe { gdt::init_core_gdt(0); }
     TEST_IDT.load();
     stack_overflow();
     panic!("execution continued after stack overflow");

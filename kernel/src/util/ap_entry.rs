@@ -2,8 +2,12 @@ use limine::mp::MpInfo;
 use x86_64::instructions::hlt;
 
 use crate::{
-    gdt::init_core_gdt, interrupts::{self, init_timer_for_core}, serial_println, util::{
-        apic_util::{get_current_core_id, get_lapic_base_addr_phys, init_lapic_for_current_core}, cpuinfo::init_cpu_info_for_core,
+    gdt::init_core_gdt,
+    interrupts::{self, init_timer_for_core},
+    serial_println,
+    util::{
+        apic_util::{get_current_core_id, get_lapic_base_addr_phys, init_lapic_for_current_core},
+        cpuinfo::init_cpu_info_for_core,
     },
 };
 

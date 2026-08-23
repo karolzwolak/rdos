@@ -32,7 +32,8 @@ const DEFAULT_CPU_INFO: CpuInfo = CpuInfo {
     vendor: CpuVendor::Unknown,
 };
 
-static mut CPU_INFO_PER_CORE: [CpuInfo; MAX_CORES as usize] = [DEFAULT_CPU_INFO; MAX_CORES as usize];
+static mut CPU_INFO_PER_CORE: [CpuInfo; MAX_CORES as usize] =
+    [DEFAULT_CPU_INFO; MAX_CORES as usize];
 
 bitflags! {
     pub struct CpuFeatureFlags: u32 {

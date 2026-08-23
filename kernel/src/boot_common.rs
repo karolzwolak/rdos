@@ -1,14 +1,13 @@
-use crate::util::ap_entry::{ap_core_entry_point, init_core};
-use crate::{MAX_CORES, serial_println_core};
 use crate::memory::paging::MemoryMapFrameAllocator;
+use crate::util::ap_entry::{ap_core_entry_point, init_core};
 use crate::{
-    LIMINE_BASE_REVISION, graphics, interrupts, memory, memory::allocator,
-    serial_println,
+    LIMINE_BASE_REVISION, graphics, interrupts, memory, memory::allocator, serial_println,
 };
+use crate::{MAX_CORES, serial_println_core};
 use limine::{
     BaseRevision, RequestsEndMarker, RequestsStartMarker,
-    paging::PagingMode,
     mp::MpGotoFunction,
+    paging::PagingMode,
     request::{
         EfiMemmapRequest, FramebufferRequest, HhdmRequest, MemmapRequest, MpRequest,
         PagingModeRequest, RsdpRequest,

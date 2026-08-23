@@ -279,11 +279,7 @@ pub unsafe fn init_timer_for_core(core_id: u8) {
     serial_println!("Timer configured in TSC-Deadline mode");
 }
 
-unsafe fn set_ioapic_redirection(
-    io_apic_ptr: *mut u32,
-    irq: u32,
-    vector: u8
-) {
+unsafe fn set_ioapic_redirection(io_apic_ptr: *mut u32, irq: u32, vector: u8) {
     let entry_low = 0x10 + (irq * 2);
     let entry_high = 0x10 + (irq * 2 + 1);
 
@@ -292,7 +288,7 @@ unsafe fn set_ioapic_redirection(
     // Bit 11: destination mode: 0 = physical, 1 = logical
     // Bits 8-10: delivery mode: 000 = fixed
     // Bits 24-27: destination field: APIC ID of target CPU
-     // Send to APIC ID 0 (BSP)
+    // Send to APIC ID 0 (BSP)
     let high_val = 0u32;
 
     unsafe {
@@ -304,7 +300,7 @@ unsafe fn set_ioapic_redirection(
 
         io_apic_ptr.offset(0).write_volatile(entry_low);
         let readback_low = io_apic_ptr.offset(4).read_volatile();
-        
+
         serial_println!(
             "IO APIC IRQ {}: wrote {:#x}, readback {:#x} (vector: {}, enabled: {})",
             irq,
@@ -381,7 +377,8 @@ pub unsafe fn init_acpi(
             let io_apic_phys_addr = PhysAddr::new(io_apic_addr as u64);
             let page = Page::containing_address(VirtAddr::new(io_apic_phys_addr.as_u64()));
             let frame = PhysFrame::containing_address(io_apic_phys_addr);
-            let flags = PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_CACHE;
+            let flags =
+                PageTableFlags::PRESENT | PageTableFlags::WRITABLE | PageTableFlags::NO_CACHE;
             serial_println!(
                 "Mapping IO APIC identity: phys {:#x}, virt: {:#x}",
                 io_apic_phys_addr,
@@ -412,11 +409,7 @@ pub unsafe fn init_acpi(
             }
 
             unsafe {
-                set_ioapic_redirection(
-                    ioapic_ptr,
-                    keyboard_irq,
-                    InterruptIndex::Keyboard as u8
-                );
+                set_ioapic_redirection(ioapic_ptr, keyboard_irq, InterruptIndex::Keyboard as u8);
             }
         }
         _ => {
