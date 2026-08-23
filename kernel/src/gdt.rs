@@ -83,11 +83,11 @@ pub fn ist0_bounds(core_id: u8) -> (VirtAddr, VirtAddr) {
 pub fn install_guard_pages(frame_allocator: &mut MemoryMapFrameAllocator) {
     for core_id in 0..MAX_CORES as usize {
         unsafe {
-            crate::stack_guard::ensure_guard_unmapped(
+            crate::util::stack_guard::ensure_guard_unmapped(
                 rsp0_guard_page(core_id as u8),
                 frame_allocator,
             );
-            crate::stack_guard::ensure_guard_unmapped(
+            crate::util::stack_guard::ensure_guard_unmapped(
                 ist0_guard_page(core_id as u8),
                 frame_allocator,
             );
@@ -125,7 +125,8 @@ struct Gdt {
     tss_selector: SegmentSelector,
 }
 
-static mut PER_CORE_TSS: [UnsafeCell<TaskStateSegment>; MAX_CORES as usize] = [const { UnsafeCell::new(TaskStateSegment::new()) }; MAX_CORES as usize];
+static mut PER_CORE_TSS: [UnsafeCell<TaskStateSegment>; MAX_CORES as usize] =
+    [const { UnsafeCell::new(TaskStateSegment::new()) }; MAX_CORES as usize];
 
 impl Gdt {
     const fn empty() -> Self {

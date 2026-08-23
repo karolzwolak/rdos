@@ -60,11 +60,10 @@ static MP_REQUEST: MpRequest = MpRequest::new(LIMINE_MP_FLAG_NO_X2APIC);
 #[unsafe(link_section = ".requests_end_marker")]
 static _END_MARKER: RequestsEndMarker = RequestsEndMarker::new();
 
-
 /// # Safety
 ///
 /// Must be called exactly once during BSP boot, with Limine requests mapped and
-/// while running on the bootloader-provided stack. Initializes GDT/IDT, paging, heap, 
+/// while running on the bootloader-provided stack. Initializes GDT/IDT, paging, heap,
 /// bootstraps AP cores
 pub unsafe fn bsp_init() {
     assert!(BASE_REVISION.is_supported());

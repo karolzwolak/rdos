@@ -20,7 +20,6 @@ pub mod interrupts;
 pub mod io;
 pub mod process;
 pub mod programs;
-pub mod stack_guard;
 pub mod testing;
 pub mod util;
 
