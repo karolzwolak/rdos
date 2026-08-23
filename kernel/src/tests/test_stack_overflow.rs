@@ -31,8 +31,47 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    unsafe { kernel::boot_common::bsp_init() };
+    unsafe {
+        let top = kernel::gdt::rsp0_stack_top(0);
+
+        core::arch::asm!(
+            "mov rsp, {top}",
+            "call {bsp_init}",
+            "call {inner}",
+            top = in(reg) top,
+            bsp_init = sym kernel::boot_common::bsp_init,
+            inner = sym test_inner,
+            options(noreturn)
+        );
+    }
+}
+
+extern "C" fn test_inner() -> ! {
     serial_print!("test_stack_overflow::stack_overflow...\t");
+
+    {
+        let rsp: u64;
+
+        unsafe { core::arch::asm!("mov {}, rsp", out(reg) rsp, options(nomem, nostack)) };
+
+        let (bottom, top) = gdt::rsp0_bounds(0);
+        let (ist_bottom, ist_top) = gdt::ist0_bounds(0);
+        kernel::serial_println!(
+            "RSP={:#x} RSP0=[{:#x}..{:#x}] IST0=[{:#x}..{:#x}]",
+            rsp,
+            bottom.as_u64(),
+            top.as_u64(),
+            ist_bottom.as_u64(),
+            ist_top.as_u64()
+        );
+
+        debug_assert!(
+            rsp >= bottom.as_u64() && rsp <= top.as_u64(),
+            "RSP not in RSP0"
+        );
+    }
+
+    x86_64::instructions::interrupts::disable();
     TEST_IDT.load();
     stack_overflow();
     panic!("execution continued after stack overflow");
