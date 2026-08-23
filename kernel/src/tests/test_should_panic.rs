@@ -5,20 +5,9 @@ extern crate kernel;
 
 use core::panic::PanicInfo;
 use kernel::{
-    LIMINE_BASE_REVISION, serial_print, serial_println,
+    serial_print, serial_println,
     testing::{QemuExitCode, exit_qemu},
 };
-use limine::{BaseRevision, RequestsEndMarker, RequestsStartMarker};
-
-#[used]
-#[unsafe(link_section = ".requests_start_marker")]
-static _START: RequestsStartMarker = RequestsStartMarker::new();
-#[used]
-#[unsafe(link_section = ".requests")]
-static BASE_REVISION: BaseRevision = BaseRevision::with_revision(LIMINE_BASE_REVISION);
-#[used]
-#[unsafe(link_section = ".requests_end_marker")]
-static _END: RequestsEndMarker = RequestsEndMarker::new();
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
@@ -28,7 +17,7 @@ fn panic(_info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    assert!(BASE_REVISION.is_supported());
+    unsafe { kernel::boot_common::bsp_init() };
     should_fail();
     serial_println!("[test did not panic]");
     exit_qemu(QemuExitCode::Failed)

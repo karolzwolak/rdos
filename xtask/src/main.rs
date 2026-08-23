@@ -12,6 +12,32 @@ fn project_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn kernel_max_cores(root: &Path) -> u8 {
+    let path = root.join("kernel/src/lib.rs");
+    let content =
+        fs::read_to_string(&path).unwrap_or_else(|e| panic!("can't read {}: {e}", path.display()));
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("pub const MAX_CORES")
+            && let Some(eq) = t.find('=')
+        {
+            let after = &t[eq + 1..];
+            let digits: String = after.chars().filter(|c| c.is_ascii_digit()).collect();
+            if let Ok(v) = digits.parse::<u8>()
+                && (1..=64).contains(&v)
+            {
+                return v;
+            }
+        }
+    }
+    4
+}
+
+fn qemu_smp_arg(root: &Path) -> String {
+    let cores = kernel_max_cores(root);
+    format!("cores={},threads=1", cores)
+}
+
 fn run(cmd: &mut Command) {
     let status = cmd
         .status()
@@ -249,15 +275,110 @@ struct TestResult {
     serial: String,
 }
 
-fn run_test(iso: &Path, ovmf_code: &Path, ovmf_vars: &Path) -> TestResult {
+fn save_test_logs(root: &Path, test_name: &str, serial: &str, com2_raw_path: Option<&Path>) {
+    let test_logs_root = root.join("logs/tests");
+    let test_dir = test_logs_root.join(test_name);
+    let _ = fs::create_dir_all(&test_dir);
+    let _ = fs::create_dir_all(&test_logs_root);
+    let _ = fs::write(test_logs_root.join(format!("{}.log", test_name)), serial);
+    let mut combined = serial.to_string();
+    if let Some(p) = com2_raw_path
+        && let Ok(com2) = fs::read_to_string(p)
+        && !com2.trim().is_empty()
+    {
+        combined.push('\n');
+        combined.push_str(&com2);
+    }
+    let ansi_stripped = strip_ansi(&combined);
+    let _ = fs::write(test_dir.join("all.txt"), &ansi_stripped);
+    let _ = fs::write(
+        test_logs_root.join(format!("{}.log", test_name)),
+        &ansi_stripped,
+    );
+    let max_cores = kernel_max_cores(root) as usize;
+    let mut core_writers: Vec<Option<std::fs::File>> = (0..max_cores).map(|_| None).collect();
+    for (i, slot) in core_writers.iter_mut().enumerate() {
+        let path = test_dir.join(format!("core_{}.txt", i));
+        if let Ok(f) = std::fs::File::create(&path) {
+            *slot = Some(f);
+        }
+    }
+    let mut pid_writers: std::collections::HashMap<u32, std::fs::File> =
+        std::collections::HashMap::new();
+    for line in ansi_stripped.lines() {
+        if line.starts_with("[Core ")
+            && let Some(core_id) = parse_core_id(line)
+            && core_id < max_cores
+            && let Some(f) = core_writers[core_id].as_mut()
+        {
+            let _ = std::io::Write::write_all(f, format!("{}\n", line).as_bytes());
+        }
+        if let Some(pid) = parse_pid(line) {
+            let entry = pid_writers.entry(pid).or_insert_with(|| {
+                std::fs::File::create(test_dir.join(format!("userspace_pid_{}.txt", pid))).unwrap()
+            });
+            let cleaned = line
+                .replacen(&format!("[pid={}]", pid), "", 1)
+                .trim()
+                .to_string();
+            let _ = std::io::Write::write_all(entry, format!("{}\n", cleaned).as_bytes());
+        }
+    }
+}
+
+fn strip_ansi(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for ch in chars.by_ref() {
+                if ch.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
+fn parse_core_id(line: &str) -> Option<usize> {
+    let rest = line.strip_prefix("[Core ")?;
+    let end = rest.find(|c: char| !c.is_ascii_digit())?;
+    rest[..end].parse().ok()
+}
+
+fn parse_pid(line: &str) -> Option<u32> {
+    let start = line.find("[pid=")?;
+    let rest = &line[start + 5..];
+    let end = rest.find(']')?;
+    rest[..end].parse().ok()
+}
+
+fn run_test_with_timeout(
+    root: &Path,
+    iso: &Path,
+    ovmf_code: &Path,
+    ovmf_vars: &Path,
+    timeout_secs: &str,
+) -> TestResult {
+    let smp = qemu_smp_arg(root);
+    let com2_tmp = root
+        .join("target")
+        .join(format!("com2_{}.log", std::process::id()));
+    let com2_arg = format!("file:{}", com2_tmp.display());
     let out = Command::new("timeout")
-        .arg("10")
+        .arg(timeout_secs)
         .arg("qemu-system-x86_64")
         .args([
             "-M",
             "q35",
             "-accel",
             "kvm",
+            "-smp",
+            &smp,
             "-cpu",
             "qemu64,+tsc-deadline,+apic",
         ])
@@ -274,20 +395,38 @@ fn run_test(iso: &Path, ovmf_code: &Path, ovmf_vars: &Path) -> TestResult {
         ])
         .args(["-cdrom", iso.to_str().unwrap()])
         .args(["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"])
-        .args(["-serial", "stdio", "-display", "none", "-no-reboot"])
+        .args([
+            "-serial",
+            "stdio",
+            "-serial",
+            &com2_arg,
+            "-display",
+            "none",
+            "-no-reboot",
+        ])
         .args(["-m", "256M"])
-        // Capture serial (stdout). Discard QEMU's own stderr noise.
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .output()
         .unwrap_or_else(|e| panic!("failed to spawn qemu: {e}"));
-
     let exit_code = out.status.code();
+    let mut serial = String::from_utf8_lossy(&out.stdout).into_owned();
+    if let Ok(com2) = fs::read_to_string(&com2_tmp)
+        && !com2.trim().is_empty()
+    {
+        serial.push('\n');
+        serial.push_str(&com2);
+    }
+    let _ = fs::remove_file(&com2_tmp);
     TestResult {
         passed: exit_code == Some(TEST_SUCCESS_EXIT),
         exit_code,
-        serial: String::from_utf8_lossy(&out.stdout).into_owned(),
+        serial,
     }
+}
+
+fn run_test(root: &Path, iso: &Path, ovmf_code: &Path, ovmf_vars: &Path) -> TestResult {
+    run_test_with_timeout(root, iso, ovmf_code, ovmf_vars, "15")
 }
 
 fn run_tests(root: &Path, filters: &[String]) {
@@ -314,6 +453,12 @@ fn run_tests(root: &Path, filters: &[String]) {
     let (ovmf_code, ovmf_vars) = ovmf(root);
 
     println!();
+    let smp = qemu_smp_arg(root);
+    println!(
+        "{BOLD}SMP cores:{RESET} {} (from kernel/src/lib.rs MAX_CORES)",
+        kernel_max_cores(root)
+    );
+    println!("{BOLD}QEMU smp:{RESET} {}", smp);
     let mut passed_names: Vec<&str> = Vec::new();
     let mut failed_names: Vec<(&str, Option<i32>)> = Vec::new();
 
@@ -322,10 +467,11 @@ fn run_tests(root: &Path, filters: &[String]) {
         std::io::stdout().flush().unwrap();
 
         let iso = package_test_iso(root, name);
-        let result = run_test(&iso, &ovmf_code, &ovmf_vars);
+        let result = run_test(root, &iso, &ovmf_code, &ovmf_vars);
+        save_test_logs(root, name, &result.serial, None);
 
         if result.passed {
-            println!("{GREEN}ok{RESET}");
+            println!("{GREEN}ok{RESET} (log: logs/tests/{}/all.txt)", name);
             passed_names.push(name);
         } else {
             let code_str = match result.exit_code {
@@ -334,7 +480,10 @@ fn run_tests(root: &Path, filters: &[String]) {
                 Some(TEST_FAILED_EXIT) => format!("{} (kernel reported failure)", TEST_FAILED_EXIT),
                 Some(c) => c.to_string(),
             };
-            println!("{RED}FAILED{RESET} (exit code: {code_str})");
+            println!(
+                "{RED}FAILED{RESET} (exit code: {code_str}) (log: logs/tests/{}/all.txt)",
+                name
+            );
             let serial = result.serial.trim();
             if !serial.is_empty() {
                 println!("  {YELLOW}---- serial output ----{RESET}");
@@ -350,7 +499,7 @@ fn run_tests(root: &Path, filters: &[String]) {
     println!();
     if failed_names.is_empty() {
         println!(
-            "{GREEN}{BOLD}test result: ok.{RESET} {} passed; 0 failed",
+            "{GREEN}{BOLD}test result: ok.{RESET} {} passed; 0 failed (logs in logs/tests/)",
             passed_names.len()
         );
     } else {
@@ -704,12 +853,29 @@ fn run_iso(root: &Path) {
     let (code, vars) = ovmf(root);
     let iso = root.join("target/template-x86_64.iso");
 
+    let smp = qemu_smp_arg(root);
+
+    let socket1 = "/tmp/bigos_com1.sock";
+    let socket2 = "/tmp/bigos_com2.sock";
+    let _ = fs::create_dir_all(root.join("logs"));
+    let _ = fs::remove_file(socket1);
+    let _ = fs::remove_file(socket2);
+    let log_script = root.join("scripts/log_splitter.py");
+    let mut log_child = Command::new("python3")
+        .arg(&log_script)
+        .arg(socket1)
+        .arg(socket2)
+        .spawn()
+        .expect("failed to spawn log_splitter.py");
+
     let mut cmd = Command::new("qemu-system-x86_64");
     cmd.args([
         "-M",
         "q35",
         "-accel",
         "kvm",
+        "-smp",
+        &smp,
         "-cpu",
         "qemu64,+tsc-deadline,+apic",
     ])
@@ -726,10 +892,21 @@ fn run_iso(root: &Path) {
     ])
     .args(["-cdrom", iso.to_str().unwrap()])
     .args(["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"])
+    .args(["-serial", &format!("unix:{socket1},server")])
+    .args(["-serial", &format!("unix:{socket2},server,nowait")])
     .args(["-serial", "stdio", "-no-reboot"])
     .args(["-monitor", "telnet:127.0.0.1:1234,server,nowait"])
     .args(qemu_flags());
     run(&mut cmd);
+
+    let status = cmd.status().expect("failed to run qemu");
+    let _ = log_child.kill();
+    let _ = log_child.wait();
+    if !status.success()
+        && let Some(code) = status.code()
+    {
+        std::process::exit(code);
+    }
 }
 
 fn run_hdd(root: &Path) {
