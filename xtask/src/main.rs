@@ -18,15 +18,15 @@ fn kernel_max_cores(root: &Path) -> u8 {
         fs::read_to_string(&path).unwrap_or_else(|e| panic!("can't read {}: {e}", path.display()));
     for line in content.lines() {
         let t = line.trim();
-        if t.starts_with("pub const MAX_CORES") {
-            if let Some(eq) = t.find('=') {
-                let after = &t[eq + 1..];
-                let digits: String = after.chars().filter(|c| c.is_ascii_digit()).collect();
-                if let Ok(v) = digits.parse::<u8>() {
-                    if v >= 1 && v <= 64 {
-                        return v;
-                    }
-                }
+        if t.starts_with("pub const MAX_CORES")
+            && let Some(eq) = t.find('=')
+        {
+            let after = &t[eq + 1..];
+            let digits: String = after.chars().filter(|c| c.is_ascii_digit()).collect();
+            if let Ok(v) = digits.parse::<u8>()
+                && (1..=64).contains(&v)
+            {
+                return v;
             }
         }
     }
@@ -282,13 +282,12 @@ fn save_test_logs(root: &Path, test_name: &str, serial: &str, com2_raw_path: Opt
     let _ = fs::create_dir_all(&test_logs_root);
     let _ = fs::write(test_logs_root.join(format!("{}.log", test_name)), serial);
     let mut combined = serial.to_string();
-    if let Some(p) = com2_raw_path {
-        if let Ok(com2) = fs::read_to_string(p) {
-            if !com2.trim().is_empty() {
-                combined.push_str("\n");
-                combined.push_str(&com2);
-            }
-        }
+    if let Some(p) = com2_raw_path
+        && let Ok(com2) = fs::read_to_string(p)
+        && !com2.trim().is_empty()
+    {
+        combined.push('\n');
+        combined.push_str(&com2);
     }
     let ansi_stripped = strip_ansi(&combined);
     let _ = fs::write(test_dir.join("all.txt"), &ansi_stripped);
@@ -298,23 +297,21 @@ fn save_test_logs(root: &Path, test_name: &str, serial: &str, com2_raw_path: Opt
     );
     let max_cores = kernel_max_cores(root) as usize;
     let mut core_writers: Vec<Option<std::fs::File>> = (0..max_cores).map(|_| None).collect();
-    for i in 0..max_cores {
+    for (i, slot) in core_writers.iter_mut().enumerate() {
         let path = test_dir.join(format!("core_{}.txt", i));
         if let Ok(f) = std::fs::File::create(&path) {
-            core_writers[i] = Some(f);
+            *slot = Some(f);
         }
     }
     let mut pid_writers: std::collections::HashMap<u32, std::fs::File> =
         std::collections::HashMap::new();
     for line in ansi_stripped.lines() {
-        if line.starts_with("[Core ") {
-            if let Some(core_id) = parse_core_id(line) {
-                if core_id < max_cores {
-                    if let Some(f) = core_writers[core_id].as_mut() {
-                        let _ = std::io::Write::write_all(f, format!("{}\n", line).as_bytes());
-                    }
-                }
-            }
+        if line.starts_with("[Core ")
+            && let Some(core_id) = parse_core_id(line)
+            && core_id < max_cores
+            && let Some(f) = core_writers[core_id].as_mut()
+        {
+            let _ = std::io::Write::write_all(f, format!("{}\n", line).as_bytes());
         }
         if let Some(pid) = parse_pid(line) {
             let entry = pid_writers.entry(pid).or_insert_with(|| {
@@ -333,16 +330,14 @@ fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '\x1b' {
-            if chars.peek() == Some(&'[') {
-                chars.next();
-                for ch in chars.by_ref() {
-                    if ch.is_ascii_alphabetic() {
-                        break;
-                    }
+        if c == '\x1b' && chars.peek() == Some(&'[') {
+            chars.next();
+            for ch in chars.by_ref() {
+                if ch.is_ascii_alphabetic() {
+                    break;
                 }
-                continue;
             }
+            continue;
         }
         out.push(c);
     }
@@ -377,12 +372,38 @@ fn run_test_with_timeout(
     let out = Command::new("timeout")
         .arg(timeout_secs)
         .arg("qemu-system-x86_64")
-        .args(["-M", "q35", "-accel", "kvm", "-smp", &smp, "-cpu", "qemu64,+tsc-deadline,+apic"])
-        .args(["-drive", &format!("if=pflash,unit=0,format=raw,file={},readonly=on", ovmf_code.display())])
-        .args(["-drive", &format!("if=pflash,unit=1,format=raw,file={}", ovmf_vars.display())])
+        .args([
+            "-M",
+            "q35",
+            "-accel",
+            "kvm",
+            "-smp",
+            &smp,
+            "-cpu",
+            "qemu64,+tsc-deadline,+apic",
+        ])
+        .args([
+            "-drive",
+            &format!(
+                "if=pflash,unit=0,format=raw,file={},readonly=on",
+                ovmf_code.display()
+            ),
+        ])
+        .args([
+            "-drive",
+            &format!("if=pflash,unit=1,format=raw,file={}", ovmf_vars.display()),
+        ])
         .args(["-cdrom", iso.to_str().unwrap()])
         .args(["-device", "isa-debug-exit,iobase=0xf4,iosize=0x04"])
-        .args(["-serial", "stdio", "-serial", &com2_arg, "-display", "none", "-no-reboot"])
+        .args([
+            "-serial",
+            "stdio",
+            "-serial",
+            &com2_arg,
+            "-display",
+            "none",
+            "-no-reboot",
+        ])
         .args(["-m", "256M"])
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -390,15 +411,13 @@ fn run_test_with_timeout(
         .unwrap_or_else(|e| panic!("failed to spawn qemu: {e}"));
     let exit_code = out.status.code();
     let mut serial = String::from_utf8_lossy(&out.stdout).into_owned();
-    if let Ok(com2) = fs::read_to_string(&com2_tmp) {
-        if !com2.trim().is_empty() {
-            serial.push_str("\n");
-            serial.push_str(&com2);
-        }
-        let _ = fs::remove_file(&com2_tmp);
-    } else {
-        let _ = fs::remove_file(&com2_tmp);
+    if let Ok(com2) = fs::read_to_string(&com2_tmp)
+        && !com2.trim().is_empty()
+    {
+        serial.push('\n');
+        serial.push_str(&com2);
     }
+    let _ = fs::remove_file(&com2_tmp);
     TestResult {
         passed: exit_code == Some(TEST_SUCCESS_EXIT),
         exit_code,
@@ -882,10 +901,11 @@ fn run_iso(root: &Path) {
 
     let status = cmd.status().expect("failed to run qemu");
     let _ = log_child.kill();
-    if !status.success() {
-        if let Some(code) = status.code() {
-            std::process::exit(code);
-        }
+    let _ = log_child.wait();
+    if !status.success()
+        && let Some(code) = status.code()
+    {
+        std::process::exit(code);
     }
 }
 
