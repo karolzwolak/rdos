@@ -1,4 +1,4 @@
-use crate::serial_println;
+use crate::{MAX_CORES, serial_println, serial_println_core};
 use bitflags::bitflags;
 use core::arch::asm;
 
@@ -6,9 +6,9 @@ static mut CPU_INFO: CpuInfo = CpuInfo {
     features: CpuFeatureFlags::empty(),
     cache_line_size: 0,
     apic_id: 0,
-    family: 0,
     model: 0,
     stepping: 0,
+    family: 0,
     vendor: CpuVendor::Unknown,
 };
 
@@ -16,21 +16,32 @@ pub struct CpuInfo {
     pub features: CpuFeatureFlags,
     pub cache_line_size: u8,
     pub apic_id: u8,
-
-    pub family: u8,
     pub model: u8,
     pub stepping: u8,
+    pub family: u16,
     pub vendor: CpuVendor,
 }
+
+const DEFAULT_CPU_INFO: CpuInfo = CpuInfo {
+    features: CpuFeatureFlags::empty(),
+    cache_line_size: 0,
+    apic_id: 0,
+    model: 0,
+    stepping: 0,
+    family: 0,
+    vendor: CpuVendor::Unknown,
+};
+
+static mut CPU_INFO_PER_CORE: [CpuInfo; MAX_CORES as usize] = [DEFAULT_CPU_INFO; MAX_CORES as usize];
 
 bitflags! {
     pub struct CpuFeatureFlags: u32 {
         const APIC = 1 << 0;
         const X2APIC = 1 << 1;
-        const TSC = 1 << 2; // Time Stamp Counter
-        const TSC_DEADLINE = 1 << 3; // TSC Deadline mode
-        const PGE = 1 << 4; // Page Global Enable
-        const PAT = 1 << 5; // Page Attribute Table
+        const TSC = 1 << 2;
+        const TSC_DEADLINE = 1 << 3;
+        const PGE = 1 << 4;
+        const PAT = 1 << 5;
         const SSE = 1 << 6;
         const SSE2 = 1 << 7;
         const SSE3 = 1 << 8;
@@ -39,14 +50,16 @@ bitflags! {
         const AVX = 1 << 11;
         const AES = 1 << 12;
         const RDRAND = 1 << 13;
-        const HYPERVISOR = 1 << 14; // indicates running inside a VM
+        const HYPERVISOR = 1 << 14;
     }
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+#[repr(u8)]
 pub enum CpuVendor {
-    Intel,
-    Amd,
-    Unknown,
+    Unknown = 0,
+    Intel = 1,
+    Amd = 2,
 }
 
 impl core::fmt::Display for CpuVendor {
@@ -109,11 +122,10 @@ unsafe fn cpuid(leaf: u32) -> (u32, u32, u32, u32) {
 
 /// # Safety
 ///
-/// Must be called exactly once during kernel initialization. The CPU must support the `CPUID`
-/// instruction. Must not be called concurrently or after `CPU_INFO` has already been initialized.
-pub unsafe fn init_cpu_info() {
+/// Must be called exactly once during the core's initialization.
+pub unsafe fn init_cpu_info_for_core(core_id: u8) {
     let (max_leaf, vendor_ebx, vendor_ecx, vendor_edx) = unsafe { cpuid(0) };
-    serial_println!(
+    serial_println_core!(
         "init_cpu_info: read leaf 0: eax: {:#x}, ebx: {:#x}, ecx: {:#x}, edx: {:#x}",
         max_leaf,
         vendor_ebx,
@@ -122,13 +134,28 @@ pub unsafe fn init_cpu_info() {
     );
 
     assert!(max_leaf >= 1);
-    let (_, feat_ebx, feat_ecx, feat_edx) = unsafe { cpuid(1) };
-    serial_println!(
-        "init_cpu_info: read leaf 1: ebx: {:#x}, ecx: {:#x}, edx: {:#x}",
+    let (feat_eax, feat_ebx, feat_ecx, feat_edx) = unsafe { cpuid(1) };
+    serial_println_core!(
+        "init_cpu_info: read leaf 1: eax: {:#x} ebx: {:#x}, ecx: {:#x}, edx: {:#x}",
+        feat_eax,
         feat_ebx,
         feat_ecx,
         feat_edx
     );
+
+    let base_family = ((feat_eax >> 8) & 0xF) as u8;
+    let base_model = ((feat_eax >> 4) & 0xF) as u8;
+    let stepping = (feat_eax & 0xF) as u8;
+    let display_family = if base_family == 0xF {
+        base_family as u16 + (((feat_eax >> 20) & 0xFF) as u16)
+    } else {
+        base_family as u16
+    };
+    let display_model = if base_family == 0x6 || base_family == 0xF {
+        (((feat_eax >> 16) & 0xF) << 4) | (base_model as u32)
+    } else {
+        base_model as u32
+    } as u8;
 
     let mut features = CpuFeatureFlags::empty();
 
@@ -184,27 +211,42 @@ pub unsafe fn init_cpu_info() {
     let cpu_model = ((feat_edx >> 4) & 0xF) as u8;
     let cpu_stepping = (feat_edx & 0xF) as u8;
     let cpu_vendor = unsafe { get_vendor(vendor_ebx, vendor_ecx, vendor_edx) };
-    serial_println!("CPU Info:");
-    serial_println!("  Vendor: {}", cpu_vendor);
-    serial_println!("  Cache Line Size: {}", cache_line_size);
-    serial_println!("  Features {:#b}", features);
+    serial_println_core!("CPU Info:");
+    serial_println_core!(
+        "  Vendor: {}, family={:#x}, (display={:#x}), model={:#x} (display={:#x}), stepping={}",
+        cpu_vendor,
+        base_family,
+        display_family,
+        base_model,
+        display_model,
+        stepping
+    );
+    serial_println_core!("  Cache Line Size: {}", cache_line_size);
+    serial_println_core!("  Features {:#b}", features);
+
+    debug_assert!((core_id as usize) < MAX_CORES as usize);
 
     unsafe {
-        CPU_INFO = CpuInfo {
-            features,
-            cache_line_size,
-            apic_id,
-            family: cpu_family,
-            model: cpu_model,
-            stepping: cpu_stepping,
-            vendor: cpu_vendor,
-        };
+        core::ptr::write(
+            &raw mut CPU_INFO_PER_CORE[core_id as usize],
+            CpuInfo {
+                features,
+                cache_line_size,
+                apic_id,
+                model: display_model,
+                stepping: cpu_stepping,
+                family: display_family,
+                vendor: cpu_vendor,
+            },
+        );
     }
 }
 
-pub fn get_cpu_info() -> &'static CpuInfo {
+pub fn get_cpu_info_for_core(core_id: u8) -> &'static CpuInfo {
+    debug_assert!((core_id as usize) < MAX_CORES as usize);
+
     unsafe {
-        let ptr = &raw const CPU_INFO;
+        let ptr = &raw const CPU_INFO_PER_CORE[core_id as usize];
         &*ptr
     }
 }

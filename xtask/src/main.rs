@@ -12,6 +12,32 @@ fn project_root() -> PathBuf {
         .to_path_buf()
 }
 
+fn kernel_max_cores(root: &Path) -> u8 {
+    let path = root.join("kernel/src/lib.rs");
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("can't read {}: {e}", path.display()));
+    for line in content.lines() {
+        let t = line.trim();
+        if t.starts_with("pub const MAX_CORES") {
+            if let Some(eq) = t.find('=') {
+                let after = &t[eq + 1..];
+                let digits: String = after.chars().filter(|c| c.is_ascii_digit()).collect();
+                if let Ok(v) = digits.parse::<u8>() {
+                    if v >= 1 && v <= 64 {
+                        return v;
+                    }
+                }
+            }
+        }
+    }
+    4
+}
+
+fn qemu_smp_arg(root: &Path) -> String {
+    let cores = kernel_max_cores(root);
+    format!("cores={},threads=1", cores)
+}
+
 fn run(cmd: &mut Command) {
     let status = cmd
         .status()
@@ -704,12 +730,15 @@ fn run_iso(root: &Path) {
     let (code, vars) = ovmf(root);
     let iso = root.join("target/template-x86_64.iso");
 
+    let smp = qemu_smp_arg(root);
+
     let mut cmd = Command::new("qemu-system-x86_64");
     cmd.args([
         "-M",
         "q35",
         "-accel",
         "kvm",
+        "-smp", &smp,
         "-cpu",
         "qemu64,+tsc-deadline,+apic",
     ])

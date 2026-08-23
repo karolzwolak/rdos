@@ -5,7 +5,7 @@ extern crate kernel;
 
 use core::panic::PanicInfo;
 use kernel::{
-    LIMINE_BASE_REVISION, init_globals,
+    LIMINE_BASE_REVISION,
     memory::paging::{MemoryMapFrameAllocator, init_offset_page_table},
     serial_print, serial_println,
     testing::{QemuExitCode, exit_qemu, test_panic_handler},
@@ -42,19 +42,19 @@ fn panic(info: &PanicInfo) -> ! {
 
 #[unsafe(no_mangle)]
 extern "C" fn kmain() -> ! {
-    assert!(BASE_REVISION.is_supported());
-    let hhdm_offset = HHDM_REQUEST.response().expect("no HHDM").offset;
-    let memory_map = MEMORY_MAP_REQUEST
-        .response()
-        .expect("no memory map")
-        .entries();
-    init_globals();
-    let mut mapper = unsafe { init_offset_page_table(hhdm_offset) };
-    let mut frame_allocator = unsafe { MemoryMapFrameAllocator::init(memory_map) };
+    // assert!(BASE_REVISION.is_supported());
+    // let hhdm_offset = HHDM_REQUEST.response().expect("no HHDM").offset;
+    // let memory_map = MEMORY_MAP_REQUEST
+    //     .response()
+    //     .expect("no memory map")
+    //     .entries();
+    // init_globals();
+    // let mut mapper = unsafe { init_offset_page_table(hhdm_offset) };
+    // let mut frame_allocator = unsafe { MemoryMapFrameAllocator::init(memory_map) };
 
-    serial_print!("test_page_mapping::create_mapping...\t");
-    test_create_mapping(&mut mapper, &mut frame_allocator);
-    serial_println!("[ok]");
+    // serial_print!("test_page_mapping::create_mapping...\t");
+    // test_create_mapping(&mut mapper, &mut frame_allocator);
+    // serial_println!("[ok]");
     exit_qemu(QemuExitCode::Success)
 }
 

@@ -27,18 +27,18 @@ pub fn execute_process_direct(process: &Process) -> ! {
     serial_println!("Switched to user page table");
 
     unsafe {
-        jump_to_userspace(process.execution_context.rip, process.execution_context.rsp);
+        jump_to_userspace(process.execution_context.rip, process.execution_context.rsp, 0);
     }
 }
 
 #[unsafe(no_mangle)]
-unsafe fn jump_to_userspace(entry_point: u64, stack_pointer: u64) -> ! {
+unsafe fn jump_to_userspace(entry_point: u64, stack_pointer: u64, core_id: u8) -> ! {
     serial_println!("Jumping to userspace:");
     serial_println!("  Entry: {:#x}", entry_point);
     serial_println!("  Stack: {:#x}", stack_pointer);
 
-    let user_code_selector = crate::gdt::get_user_code_selector().0 as u64;
-    let user_data_selector = crate::gdt::get_user_data_selector().0 as u64;
+    let user_code_selector = crate::gdt::get_user_code_selector(core_id).0 as u64;
+    let user_data_selector = crate::gdt::get_user_data_selector(core_id).0 as u64;
     serial_println!("  CS: {:#x}", user_code_selector);
     serial_println!("  SS: {:#x}", user_data_selector);
 

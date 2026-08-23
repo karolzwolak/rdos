@@ -44,7 +44,7 @@ fn panic(info: &PanicInfo) -> ! {
 extern "C" fn kmain() -> ! {
     assert!(BASE_REVISION.is_supported());
     serial_print!("test_stack_overflow::stack_overflow...\t");
-    gdt::init();
+    unsafe { gdt::init_core_gdt(0); }
     TEST_IDT.load();
     stack_overflow();
     panic!("execution continued after stack overflow");
